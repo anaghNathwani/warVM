@@ -1,0 +1,73 @@
+#cloud-config
+# Runs on first boot — installs Docker, clones WarVM, starts the stack.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - git
+  - openssl
+  - cpu-checker
+
+write_files:
+  - path: /etc/warvm-password
+    content: "${warvm_password}"
+    permissions: "0600"
+
+runcmd:
+  # ── Docker ────────────────────────────────────────────────────────────────
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update -y
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  - systemctl enable --now docker
+  - usermod -aG docker ubuntu
+
+  # ── KVM check ─────────────────────────────────────────────────────────────
+  - modprobe kvm-intel || modprobe kvm-amd || true
+
+  # ── Clone & configure WarVM ───────────────────────────────────────────────
+  - git clone https://github.com/anaghnathwani/warvm.git /opt/warvm
+  - cd /opt/warvm && mkdir -p nginx/certs
+
+  # Self-signed TLS cert
+  - |
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+      -keyout /opt/warvm/nginx/certs/server.key \
+      -out    /opt/warvm/nginx/certs/server.crt \
+      -subj   "/CN=warvm/O=WarVM/C=US"
+
+  # Inject custom password into compose env
+  - |
+    PASS=$(cat /etc/warvm-password)
+    sed -i "s/WarThunder1!/$PASS/" /opt/warvm/docker-compose.yml
+
+  # ── Start stack ───────────────────────────────────────────────────────────
+  - cd /opt/warvm && docker compose pull
+  - cd /opt/warvm && docker compose up -d
+
+  # ── systemd service so the VM restarts on reboot ──────────────────────────
+  - |
+    cat > /etc/systemd/system/warvm.service << 'EOF'
+    [Unit]
+    Description=WarVM Docker Stack
+    After=docker.service
+    Requires=docker.service
+
+    [Service]
+    WorkingDirectory=/opt/warvm
+    ExecStart=/usr/bin/docker compose up
+    ExecStop=/usr/bin/docker compose down
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+  - systemctl daemon-reload
+  - systemctl enable warvm
