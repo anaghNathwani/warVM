@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  windows:
+    image: dockurr/windows:latest
+    container_name: warvm-win11
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    volumes:
+      - windows-data:/storage
+      - ./scripts:/oem:ro
+    environment:
+      VERSION: "win11"
+      RAM_SIZE: "8G"
+      CPU_CORES: "4"
+      DISK_SIZE: "120G"
+      USERNAME: "User"
+      PASSWORD: "WarThunder1!"
+      LANGUAGE: "English"
+      KEYBOARD: "en-US"
+      # Pass through the host network interface for direct internet
+      NETWORK: "user"
+    ports:
+      - "8006:8006"   # noVNC web UI
+      - "3389:3389"   # RDP fallback
+    networks:
+      - warvm-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+
+  # Nginx reverse proxy with a clean landing page
+  proxy:
+    image: nginx:alpine
+    container_name: warvm-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - windows
+    networks:
+      - warvm-net
+
+volumes:
+  windows-data:
+    driver: local
+
+networks:
+  warvm-net:
+    driver: bridge
