@@ -1,133 +1,103 @@
-# WarVM — Free Cloud Setup (Google Cloud $300 Credit)
+# WarVM — Setup Guide
 
-Google Cloud gives **$300 free credit** when you sign up — enough to run WarVM for **~3 months** at no cost.
+## Option A — Run Locally (Free, No Credit Card)
 
----
+Run WarVM on your own PC using Docker Desktop. Uses your own machine and internet connection — completely free.
 
-## Step 1 — Create a free Google Cloud account
+### Requirements
+- Windows 10/11, macOS, or Linux
+- 16 GB RAM on your machine (8 GB reserved for the VM)
+- 150 GB free disk space
+- CPU with virtualisation support (most modern CPUs have this)
 
-1. Go to **https://cloud.google.com/free**
-2. Click **"Get started for free"**
-3. Sign in with a Google account
-4. Enter billing info (required for verification — you will NOT be charged unless you manually upgrade)
-5. Your **$300 credit** is added automatically
+### Step 1 — Install Docker Desktop
 
----
+| OS | Download |
+|----|----------|
+| Windows | https://docs.docker.com/desktop/install/windows-install/ |
+| macOS | https://docs.docker.com/desktop/install/mac-install/ |
+| Linux | https://docs.docker.com/desktop/install/linux-install/ |
 
-## Step 2 — Create a project & enable APIs
+After installing, open Docker Desktop and make sure it's running.
 
-1. Go to **https://console.cloud.google.com**
-2. Click the project dropdown → **"New Project"** → name it `warvm` → **Create**
-3. Copy your **Project ID** (e.g. `warvm-123456`) — you'll need it later
-4. Enable the Compute Engine API:
-   - Go to **APIs & Services → Library**
-   - Search **"Compute Engine API"** → click **Enable**
+**Windows users:** Docker Desktop will ask to enable WSL 2 — click Yes.
 
----
+### Step 2 — Enable KVM / Virtualisation
 
-## Step 3 — Install tools on your computer
-
-### Install Terraform
-```bash
-# macOS
-brew install terraform
-
-# Windows (run in PowerShell as Admin)
-winget install HashiCorp.Terraform
-
-# Linux
-sudo apt-get install -y gnupg software-properties-common
-wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt update && sudo apt install terraform
+**Windows:** Open PowerShell as Admin and run:
+```powershell
+# Check if virtualisation is enabled
+Get-ComputerInfo -Property HyperVisorPresent
+# Should say "True" — if not, enable it in BIOS
 ```
 
-### Install Google Cloud CLI
+**macOS:** Virtualisation is on by default (Apple Silicon and Intel both work).
+
+**Linux:**
 ```bash
-# macOS
-brew install --cask google-cloud-sdk
-
-# Windows — download installer:
-# https://cloud.google.com/sdk/docs/install#windows
-
-# Linux
-curl https://sdk.cloud.google.com | bash
-exec -l $SHELL
+sudo apt install -y cpu-checker && kvm-ok
+# Should say "KVM acceleration can be used"
 ```
 
----
-
-## Step 4 — Authenticate
-
-```bash
-gcloud auth application-default login
-# A browser window opens — log in with the same Google account
-```
-
----
-
-## Step 5 — Deploy WarVM
+### Step 3 — Clone and Start WarVM
 
 ```bash
 git clone https://github.com/anaghnathwani/warvm.git
-cd warvm/terraform
-
-# Create your config file
-cat > terraform.tfvars << EOF
-project_id     = "YOUR_PROJECT_ID_HERE"   # ← paste your project ID
-warvm_password = "WarThunder1!"           # ← change if you want
-EOF
-
-terraform init
-terraform apply
-# Type "yes" when prompted
-# Takes ~5 minutes to provision
+cd warvm
+docker compose up -d
 ```
 
----
-
-## Step 6 — Access your VM
-
-After `terraform apply` finishes, you'll see:
+### Step 4 — Open in your browser
 
 ```
-Outputs:
-  web_ui   = http://34.X.X.X/
-  novnc_url = http://34.X.X.X/vm/
-  rdp       = 34.X.X.X:3389
+http://localhost/
 ```
 
-1. Open **`http://34.X.X.X/`** in your browser
-2. Click **"Launch VM"**
-3. Windows 11 first boot takes **~10 minutes**
-4. After setup, Chrome + War Thunder install automatically
-5. Log in to War Thunder and play!
+Click **Launch VM** → Windows 11 boots in your browser.
 
----
+First boot takes **~10 minutes**. After that, Chrome and the War Thunder launcher install automatically.
 
-## Cost breakdown
+**Credentials:** `User` / `WarThunder1!`
 
-| Resource | Monthly cost (from $300 credit) |
-|----------|----------------------------------|
-| n2-standard-4 VM (4 vCPU, 16 GB) | ~$97/mo |
-| 150 GB SSD | ~$15/mo |
-| Static IP | ~$3/mo |
-| **Total** | **~$115/mo → ~2.6 months free** |
-
-> After your credit runs out, stop the VM via `terraform destroy` or the GCP console to avoid charges.
-
----
-
-## Stopping / destroying
+### Stop / Start
 
 ```bash
-# Stop (preserves disk, stops billing for compute)
-gcloud compute instances stop warvm-server --zone=us-central1-a --project=YOUR_PROJECT_ID
-
-# Restart
-gcloud compute instances start warvm-server --zone=us-central1-a --project=YOUR_PROJECT_ID
-
-# Full teardown (deletes everything)
-cd warvm/terraform
-terraform destroy
+docker compose stop    # pause (saves state)
+docker compose start   # resume
+docker compose down    # shut down (data kept)
+docker compose down -v # full wipe
 ```
+
+---
+
+## Option B — Cloud Server (Access from anywhere)
+
+If you want the VM running 24/7 in the cloud so you can connect from any device, you'll need a server. Every cloud provider that supports KVM virtualisation requires a credit card for verification.
+
+Cheapest options (~$12–20/month):
+
+| Provider | Notes |
+|----------|-------|
+| **Hetzner Cloud** | Cheapest, great KVM support, EU/US regions |
+| **Vultr** | Bare-metal plans with KVM |
+| **DigitalOcean** | Droplets with nested virt |
+| **Google Cloud** | $300 free credit for new accounts |
+
+### Deploy to any Linux server
+
+SSH into your server, then:
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER && newgrp docker
+
+# Clone and start
+git clone https://github.com/anaghnathwani/warvm.git
+cd warvm
+chmod +x deploy.sh && ./deploy.sh
+```
+
+Then open `http://YOUR_SERVER_IP/` in a browser.
+
+For automated Google Cloud provisioning (Terraform), see [`terraform/`](terraform/).
