@@ -1,103 +1,103 @@
-# WarVM — Setup Guide
+# WarVM — Stream War Thunder from MacBook to Chromebook
 
-## Option A — Run Locally (Free, No Credit Card)
+Run War Thunder on your MacBook, stream it to any browser (including your Chromebook at school) — free, no credit card, no port forwarding.
 
-Run WarVM on your own PC using Docker Desktop. Uses your own machine and internet connection — completely free.
+---
 
-### Requirements
-- Windows 10/11, macOS, or Linux
-- 16 GB RAM on your machine (8 GB reserved for the VM)
-- 150 GB free disk space
-- CPU with virtualisation support (most modern CPUs have this)
+## How it works
 
-### Step 1 — Install Docker Desktop
-
-| OS | Download |
-|----|----------|
-| Windows | https://docs.docker.com/desktop/install/windows-install/ |
-| macOS | https://docs.docker.com/desktop/install/mac-install/ |
-| Linux | https://docs.docker.com/desktop/install/linux-install/ |
-
-After installing, open Docker Desktop and make sure it's running.
-
-**Windows users:** Docker Desktop will ask to enable WSL 2 — click Yes.
-
-### Step 2 — Enable KVM / Virtualisation
-
-**Windows:** Open PowerShell as Admin and run:
-```powershell
-# Check if virtualisation is enabled
-Get-ComputerInfo -Property HyperVisorPresent
-# Should say "True" — if not, enable it in BIOS
+```
+MacBook (runs the VM) ──► Cloudflare Tunnel ──► Public URL ──► Chromebook browser
 ```
 
-**macOS:** Virtualisation is on by default (Apple Silicon and Intel both work).
+Your MacBook runs Windows 11 + War Thunder inside Docker. A Cloudflare tunnel punches through your home router and gives you a public HTTPS link you can open anywhere.
 
-**Linux:**
-```bash
-sudo apt install -y cpu-checker && kvm-ok
-# Should say "KVM acceleration can be used"
-```
+---
 
-### Step 3 — Clone and Start WarVM
+## One-time setup (MacBook)
+
+### 1. Install Docker Desktop
+
+Download and install from: https://www.docker.com/products/docker-desktop/
+
+Open Docker Desktop and wait until the whale icon in the menu bar stops animating.
+
+### 2. Clone WarVM
+
+Open Terminal and run:
 
 ```bash
 git clone https://github.com/anaghnathwani/warvm.git
 cd warvm
-docker compose up -d
-```
-
-### Step 4 — Open in your browser
-
-```
-http://localhost/
-```
-
-Click **Launch VM** → Windows 11 boots in your browser.
-
-First boot takes **~10 minutes**. After that, Chrome and the War Thunder launcher install automatically.
-
-**Credentials:** `User` / `WarThunder1!`
-
-### Stop / Start
-
-```bash
-docker compose stop    # pause (saves state)
-docker compose start   # resume
-docker compose down    # shut down (data kept)
-docker compose down -v # full wipe
+chmod +x start.sh stop.sh
 ```
 
 ---
 
-## Option B — Cloud Server (Access from anywhere)
+## Every time you want to play
 
-If you want the VM running 24/7 in the cloud so you can connect from any device, you'll need a server. Every cloud provider that supports KVM virtualisation requires a credit card for verification.
-
-Cheapest options (~$12–20/month):
-
-| Provider | Notes |
-|----------|-------|
-| **Hetzner Cloud** | Cheapest, great KVM support, EU/US regions |
-| **Vultr** | Bare-metal plans with KVM |
-| **DigitalOcean** | Droplets with nested virt |
-| **Google Cloud** | $300 free credit for new accounts |
-
-### Deploy to any Linux server
-
-SSH into your server, then:
+### On your MacBook — run:
 
 ```bash
-# Install Docker
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER && newgrp docker
-
-# Clone and start
-git clone https://github.com/anaghnathwani/warvm.git
-cd warvm
-chmod +x deploy.sh && ./deploy.sh
+./start.sh
 ```
 
-Then open `http://YOUR_SERVER_IP/` in a browser.
+It will print something like:
 
-For automated Google Cloud provisioning (Terraform), see [`terraform/`](terraform/).
+```
+  ┌─────────────────────────────────────────────────────┐
+  │                                                     │
+  │   Open this URL on your Chromebook:                 │
+  │                                                     │
+  │   https://random-words.trycloudflare.com            │
+  │                                                     │
+  │   Then click Launch VM → Windows 11 streams live.   │
+  │                                                     │
+  └─────────────────────────────────────────────────────┘
+```
+
+### On your Chromebook — open that URL in Chrome
+
+- Click **Launch VM**
+- Windows 11 streams directly in the browser tab
+- First boot takes ~10 minutes (one time only)
+- War Thunder installs automatically after Windows sets up
+
+**Login:** `User` / `WarThunder1!`
+
+---
+
+## When you're done
+
+On your MacBook:
+
+```bash
+./stop.sh
+```
+
+Your game data and War Thunder progress are saved. Next time you run `./start.sh` it resumes where you left off.
+
+---
+
+## Notes
+
+- **URL changes each session** — the Cloudflare tunnel gives a new URL every time you start. Just send yourself the URL (text, Discord, etc.) before leaving home.
+- **MacBook must stay on and lid open** while you're playing at school.
+- **Internet speed matters** — WarVM streams the screen from your MacBook. The faster your home upload speed, the smoother it runs.
+- **First boot only** — Windows 11 setup + Chrome + War Thunder install takes ~10–15 min the first time. After that, starts in ~1–2 min.
+
+---
+
+## Troubleshooting
+
+**"Docker Desktop is not running"**
+→ Open Docker Desktop from Applications and wait for it to fully start.
+
+**URL didn't appear**
+→ Run `docker compose logs tunnel | grep trycloudflare` to get the URL manually.
+
+**Black screen in browser**
+→ Windows is still booting. Wait a minute and refresh.
+
+**War Thunder won't launch**
+→ The VM uses software rendering (no GPU passthrough). War Thunder may run slowly. In the launcher, set graphics to **Minimum** for best performance.

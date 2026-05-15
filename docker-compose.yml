@@ -9,9 +9,6 @@ services:
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN
-    devices:
-      - /dev/kvm
-      - /dev/net/tun
     volumes:
       - windows-data:/storage
       - ./scripts:/oem:ro
@@ -24,11 +21,10 @@ services:
       PASSWORD: "WarThunder1!"
       LANGUAGE: "English"
       KEYBOARD: "en-US"
-      # Pass through the host network interface for direct internet
       NETWORK: "user"
     ports:
-      - "8006:8006"   # noVNC web UI
-      - "3389:3389"   # RDP fallback
+      - "8006:8006"
+      - "3389:3389"
     networks:
       - warvm-net
     healthcheck:
@@ -38,20 +34,29 @@ services:
       retries: 5
       start_period: 300s
 
-  # Nginx reverse proxy with a clean landing page
   proxy:
     image: nginx:alpine
     container_name: warvm-proxy
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/html:/usr/share/nginx/html:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - windows
+    networks:
+      - warvm-net
+
+  # Cloudflare quick tunnel — punches through home router NAT for free
+  # Prints a public https://*.trycloudflare.com URL to the logs
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: warvm-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://proxy:80
+    depends_on:
+      - proxy
     networks:
       - warvm-net
 
