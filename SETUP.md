@@ -1,31 +1,19 @@
-# WarVM — Stream War Thunder from MacBook to Chromebook
+# WarVM — Stream War Thunder: MacBook → Chromebook
 
-Run War Thunder on your MacBook, stream it to any browser (including your Chromebook at school) — free, no credit card, no port forwarding.
-
----
-
-## How it works
+The Chromebook only ever talks to **GitHub Pages** (`anaghnathwani.github.io`). The game streams through a tunnel using `*.lhr.life` (localhost.run, SSH-based — far less commonly blocked than other tunnel services).
 
 ```
-MacBook (runs the VM) ──► Cloudflare Tunnel ──► Public URL ──► Chromebook browser
+MacBook (runs VM) ──SSH tunnel──► lhr.life ──► GitHub Pages noVNC client ──► Chromebook
 ```
-
-Your MacBook runs Windows 11 + War Thunder inside Docker. A Cloudflare tunnel punches through your home router and gives you a public HTTPS link you can open anywhere.
 
 ---
 
 ## One-time setup (MacBook)
 
 ### 1. Install Docker Desktop
-
-Download and install from: https://www.docker.com/products/docker-desktop/
-
-Open Docker Desktop and wait until the whale icon in the menu bar stops animating.
+Download from https://www.docker.com/products/docker-desktop/ and open it. Wait for the whale icon in the menu bar to stop animating.
 
 ### 2. Clone WarVM
-
-Open Terminal and run:
-
 ```bash
 git clone https://github.com/anaghnathwani/warvm.git
 cd warvm
@@ -36,68 +24,57 @@ chmod +x start.sh stop.sh
 
 ## Every time you want to play
 
-### On your MacBook — run:
-
+### On your MacBook:
 ```bash
 ./start.sh
 ```
 
-It will print something like:
+After ~30 seconds it prints:
 
 ```
-  ┌─────────────────────────────────────────────────────┐
-  │                                                     │
-  │   Open this URL on your Chromebook:                 │
-  │                                                     │
-  │   https://random-words.trycloudflare.com            │
-  │                                                     │
-  │   Then click Launch VM → Windows 11 streams live.   │
-  │                                                     │
-  └─────────────────────────────────────────────────────┘
+Open this on your Chromebook (through GitHub Pages):
+
+https://anaghnathwani.github.io/warVM/?stream=https%3A%2F%2Fabc123.lhr.life
 ```
 
-### On your Chromebook — open that URL in Chrome
+### On your Chromebook:
+1. Open that URL in Chrome — it loads the WarVM page on GitHub Pages
+2. The stream URL is pre-filled automatically — just click **Connect**
+3. Windows 11 appears in the browser tab
+4. First boot takes ~10 min (one time only), then War Thunder installs itself
+5. Play
 
-- Click **Launch VM**
-- Windows 11 streams directly in the browser tab
-- First boot takes ~10 minutes (one time only)
-- War Thunder installs automatically after Windows sets up
-
-**Login:** `User` / `WarThunder1!`
+> **Alternatively:** Go to `https://anaghnathwani.github.io/warVM/` and paste the `lhr.life` URL from your Mac manually.
 
 ---
 
 ## When you're done
 
-On your MacBook:
+Press `Ctrl+C` in the terminal on your Mac to stop the tunnel, then:
 
 ```bash
 ./stop.sh
 ```
 
-Your game data and War Thunder progress are saved. Next time you run `./start.sh` it resumes where you left off.
+Game data and War Thunder are saved. Next `./start.sh` resumes where you left off.
 
 ---
 
 ## Notes
 
-- **URL changes each session** — the Cloudflare tunnel gives a new URL every time you start. Just send yourself the URL (text, Discord, etc.) before leaving home.
-- **MacBook must stay on and lid open** while you're playing at school.
-- **Internet speed matters** — WarVM streams the screen from your MacBook. The faster your home upload speed, the smoother it runs.
-- **First boot only** — Windows 11 setup + Chrome + War Thunder install takes ~10–15 min the first time. After that, starts in ~1–2 min.
+- **MacBook must stay on** (lid open, plugged in) while playing at school.
+- **URL changes each session** — the `lhr.life` URL is new every time. Send yourself the GitHub Pages URL before leaving home.
+- **First boot only** — Windows setup + Chrome + War Thunder install takes ~10–15 min once. After that starts in ~1–2 min.
+- **War Thunder performance** — runs via software rendering (no GPU passthrough). Set graphics to **Minimum** in the launcher for best results.
+- **SSH is built into macOS** — no installs needed for the tunnel.
 
 ---
 
 ## Troubleshooting
 
-**"Docker Desktop is not running"**
-→ Open Docker Desktop from Applications and wait for it to fully start.
-
-**URL didn't appear**
-→ Run `docker compose logs tunnel | grep trycloudflare` to get the URL manually.
-
-**Black screen in browser**
-→ Windows is still booting. Wait a minute and refresh.
-
-**War Thunder won't launch**
-→ The VM uses software rendering (no GPU passthrough). War Thunder may run slowly. In the launcher, set graphics to **Minimum** for best performance.
+| Problem | Fix |
+|---------|-----|
+| "Docker Desktop is not running" | Open Docker Desktop from Applications and wait |
+| Black screen | Windows is still booting — wait and refresh |
+| "Lost connection" banner | Check that `./start.sh` is still running on your Mac |
+| lhr.life URL is blocked too | Open an issue — we can switch to a different tunnel |

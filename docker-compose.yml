@@ -48,17 +48,6 @@ services:
     networks:
       - warvm-net
 
-  # Cloudflare quick tunnel — punches through home router NAT for free
-  # Prints a public https://*.trycloudflare.com URL to the logs
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: warvm-tunnel
-    restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://proxy:80
-    depends_on:
-      - proxy
-    networks:
-      - warvm-net
 
 volumes:
   windows-data:
