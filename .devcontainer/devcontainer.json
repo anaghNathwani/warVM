@@ -1,0 +1,37 @@
+{
+  "name": "WarVM",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true"
+    }
+  },
+
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "150gb"
+  },
+
+  "forwardPorts": [8006, 80],
+
+  "portsAttributes": {
+    "8006": {
+      "label": "War Thunder VM (noVNC)",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+    "80": {
+      "label": "WarVM Landing Page",
+      "onAutoForward": "silent",
+      "visibility": "public"
+    }
+  },
+
+  "postCreateCommand": "chmod +x *.sh",
+
+  "remoteUser": "vscode"
+}
