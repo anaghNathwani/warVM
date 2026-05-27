@@ -425,7 +425,7 @@ connectBtn.addEventListener('click', async () => {
   setStatus('Loading VNC client…');
   let RFB;
   try {
-    const mod = await import('https://esm.sh/*@novnc/novnc@1.4.0/core/rfb.js');
+    const mod = await import('https://esm.sh/@novnc/novnc@1.4.0/core/rfb.js');
     RFB = mod.default;
   } catch (err) {
     setStatus(`Failed to load VNC client — check your internet connection. (${err.message})`, 'error');
