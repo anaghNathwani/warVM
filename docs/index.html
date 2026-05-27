@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WarVM — Remote Access</title>
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #08080f;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.09);
+      --accent: #ff5f00;
+      --accent2: #d90066;
+      --text: #e8e8e8;
+      --muted: #666;
+      --green: #22c55e;
+      --red: #ef4444;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 45% at 50% -10%, rgba(200,70,0,.22), transparent),
+        radial-gradient(ellipse 55% 35% at 85% 110%, rgba(50,90,210,.14), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Landing screen ─────────────────────────────────────────── */
+    #landing {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 2rem 1.5rem;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .logo {
+      font-size: clamp(2.4rem, 8vw, 3.6rem);
+      font-weight: 900;
+      letter-spacing: .08em;
+      background: linear-gradient(135deg, #ff6a00 0%, #ee0979 55%, #ff6a00 100%);
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer 3s ease infinite;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 0% 50% }
+      50%  { background-position: 100% 50% }
+      100% { background-position: 0% 50% }
+    }
+
+    .tagline {
+      margin-top: .35rem;
+      margin-bottom: 2.4rem;
+      font-size: .95rem;
+      color: var(--muted);
+      letter-spacing: .05em;
+    }
+
+    /* code input card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2rem 1.75rem;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #aaa;
+      margin-bottom: 1.25rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    #code-input {
+      width: 100%;
+      background: rgba(0,0,0,.35);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 2.4rem;
+      font-weight: 800;
+      font-family: 'Courier New', monospace;
+      letter-spacing: .35em;
+      text-align: center;
+      text-transform: uppercase;
+      padding: .7rem .5rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    #code-input:focus { border-color: var(--accent); }
+
+    #code-input::placeholder { color: #333; letter-spacing: .25em; }
+
+    #connect-btn {
+      margin-top: 1.1rem;
+      width: 100%;
+      padding: .9rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 0 28px rgba(238,9,121,.35);
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+    }
+
+    #connect-btn:hover { transform: translateY(-2px); box-shadow: 0 0 44px rgba(238,9,121,.55); }
+    #connect-btn:active { transform: translateY(0) scale(.98); }
+    #connect-btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+    #status-msg {
+      margin-top: .9rem;
+      min-height: 1.3em;
+      font-size: .85rem;
+      text-align: center;
+      color: var(--muted);
+      transition: color .2s;
+    }
+
+    #status-msg.error { color: var(--red); }
+    #status-msg.ok    { color: var(--green); }
+
+    .hint {
+      margin-top: 1.6rem;
+      font-size: .78rem;
+      color: #444;
+      line-height: 1.6;
+    }
+
+    /* ── Remote desktop screen ──────────────────────────────────── */
+    #desktop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      background: #000;
+      flex-direction: column;
+    }
+
+    #desktop.active { display: flex; }
+
+    /* noVNC injects a canvas into this div */
+    #vnc-target {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #vnc-target canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* top HUD — collapses on hover-out */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .5rem .8rem;
+      background: rgba(0,0,0,.75);
+      backdrop-filter: blur(6px);
+      font-size: .82rem;
+      opacity: 1;
+      transition: opacity .4s;
+    }
+
+    #hud.hidden { opacity: 0; pointer-events: none; }
+
+    #hud .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      flex-shrink: 0;
+    }
+
+    #hud .dot.connecting { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+    #hud .dot.error      { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+    #hud-label { flex: 1; color: #ccc; }
+
+    #hud button {
+      padding: .25rem .7rem;
+      font-size: .78rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.07);
+      color: #ccc;
+      cursor: pointer;
+      transition: background .15s;
+    }
+
+    #hud button:hover { background: rgba(255,255,255,.15); }
+
+    #hud button.danger { border-color: rgba(239,68,68,.4); color: #f87171; }
+    #hud button.danger:hover { background: rgba(239,68,68,.15); }
+  </style>
+</head>
+<body>
+
+<!-- ── Landing ─────────────────────────────────────────────────── -->
+<section id="landing">
+  <div class="logo">⚡ WarVM</div>
+  <p class="tagline">Mac Remote Access · via browser</p>
+
+  <div class="card">
+    <h2>Enter access code</h2>
+
+    <input
+      id="code-input"
+      type="text"
+      maxlength="6"
+      placeholder="XXXXXX"
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="false"
+    />
+
+    <button id="connect-btn">Connect</button>
+
+    <p id="status-msg"></p>
+
+    <p class="hint">
+      Run <code>mac-remote/start.sh</code> on your Mac to get a code.<br>
+      All traffic uses your Mac's Wi-Fi — not this device's network.
+    </p>
+  </div>
+</section>
+
+<!-- ── Remote desktop ──────────────────────────────────────────── -->
+<section id="desktop">
+  <div id="hud">
+    <div class="dot connecting" id="hud-dot"></div>
+    <span id="hud-label">Connecting…</span>
+    <button id="btn-fullscreen">⛶ Fullscreen</button>
+    <button id="btn-disconnect" class="danger">✕ Disconnect</button>
+  </div>
+  <div id="vnc-target"></div>
+</section>
+
+<script type="module">
+// ── Config ────────────────────────────────────────────────────────
+// After deploying the Cloudflare Worker, paste its URL here
+const RELAY_URL = 'REPLACE_WITH_YOUR_WORKER_URL';
+// e.g. 'https://warvm-relay.YOUR_NAME.workers.dev'
+
+// ── noVNC — loaded via esm.sh which resolves internal imports ──
+import RFB from 'https://esm.sh/@novnc/novnc@1.5.0/core/rfb.js';
+
+// ── DOM refs ──────────────────────────────────────────────────────
+const landing      = document.getElementById('landing');
+const desktop      = document.getElementById('desktop');
+const codeInput    = document.getElementById('code-input');
+const connectBtn   = document.getElementById('connect-btn');
+const statusMsg    = document.getElementById('status-msg');
+const hud          = document.getElementById('hud');
+const hudDot       = document.getElementById('hud-dot');
+const hudLabel     = document.getElementById('hud-label');
+const vncTarget    = document.getElementById('vnc-target');
+const btnFullscreen= document.getElementById('btn-fullscreen');
+const btnDisconnect= document.getElementById('btn-disconnect');
+
+let rfb = null;
+let hudTimer = null;
+
+// ── Helpers ───────────────────────────────────────────────────────
+function setStatus(msg, type = '') {
+  statusMsg.textContent = msg;
+  statusMsg.className = type;
+}
+
+function setHUD(label, state = 'connected') {
+  hudDot.className = `dot ${state === 'connecting' ? 'connecting' : state === 'error' ? 'error' : ''}`;
+  hudLabel.textContent = label;
+}
+
+function autoHideHUD() {
+  clearTimeout(hudTimer);
+  hud.classList.remove('hidden');
+  hudTimer = setTimeout(() => hud.classList.add('hidden'), 3500);
+}
+
+// ── Input: uppercase + limit to 6 alphanumeric ────────────────────
+codeInput.addEventListener('input', () => {
+  codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  setStatus('');
+});
+
+codeInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') connectBtn.click();
+});
+
+// ── Connect ───────────────────────────────────────────────────────
+connectBtn.addEventListener('click', async () => {
+  const code = codeInput.value.trim();
+
+  if (code.length !== 6) {
+    setStatus('Enter your 6-character code.', 'error');
+    return;
+  }
+
+  if (RELAY_URL.startsWith('REPLACE_')) {
+    setStatus('RELAY_URL is not configured in index.html.', 'error');
+    return;
+  }
+
+  connectBtn.disabled = true;
+  setStatus('Looking up code…');
+
+  let tunnelUrl;
+  try {
+    const res = await fetch(`${RELAY_URL}/lookup/${code}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    tunnelUrl = data.url;
+  } catch (err) {
+    setStatus(`Code not found — is your Mac running start.sh? (${err.message})`, 'error');
+    connectBtn.disabled = false;
+    return;
+  }
+
+  setStatus('Code found. Opening desktop…', 'ok');
+
+  // Switch views
+  landing.style.display = 'none';
+  desktop.classList.add('active');
+
+  // noVNC WebSocket URL (https → wss)
+  const wsUrl = tunnelUrl.replace(/^https:\/\//, 'wss://');
+
+  setHUD('Connecting…', 'connecting');
+
+  rfb = new RFB(vncTarget, wsUrl);
+  rfb.scaleViewport = true;
+  rfb.resizeSession = true;
+  rfb.qualityLevel  = 7;
+
+  rfb.addEventListener('connect', () => {
+    setHUD(`Connected — ${tunnelUrl.replace('https://', '')}`, 'connected');
+    autoHideHUD();
+  });
+
+  rfb.addEventListener('disconnect', (e) => {
+    const reason = e.detail?.clean ? 'Session ended.' : 'Disconnected unexpectedly.';
+    setHUD(reason, 'error');
+    hud.classList.remove('hidden');
+    setTimeout(goHome, 3000);
+  });
+
+  rfb.addEventListener('credentialsrequired', () => {
+    const pw = prompt('Enter your Mac VNC password:');
+    if (pw !== null) rfb.sendCredentials({ password: pw });
+    else goHome();
+  });
+
+  rfb.addEventListener('securityfailure', () => {
+    setHUD('Wrong password — disconnecting.', 'error');
+    hud.classList.remove('hidden');
+    setTimeout(goHome, 2500);
+  });
+
+  // Show HUD on mouse move / touch
+  desktop.addEventListener('mousemove', autoHideHUD);
+  desktop.addEventListener('touchstart', autoHideHUD, { passive: true });
+});
+
+// ── Fullscreen ────────────────────────────────────────────────────
+btnFullscreen.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    desktop.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  btnFullscreen.textContent = document.fullscreenElement ? '⛶ Exit' : '⛶ Fullscreen';
+});
+
+// ── Disconnect / go home ─────────────────────────────────────────
+function goHome() {
+  if (rfb) { try { rfb.disconnect(); } catch {} rfb = null; }
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  desktop.classList.remove('active');
+  landing.style.display = '';
+  connectBtn.disabled = false;
+  setStatus('');
+}
+
+btnDisconnect.addEventListener('click', goHome);
+</script>
+
+</body>
+</html>

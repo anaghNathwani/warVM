@@ -2,3 +2,5 @@ nginx/certs/
 *.key
 *.crt
 *.pem
+.DS_Store
+mac-remote/relay/node_modules/
