@@ -7,7 +7,7 @@ RELAY_URL="https://warvm-relay.anaghnathwani.workers.dev"
 SITE="https://anaghnathwani.github.io/warVM"
 VNC_PORT=5900
 WS_PORT=6080
-TTL=14400
+TTL=86400
 # ────────────────────────────────────────────────────────────────────────
 
 clear
@@ -125,7 +125,7 @@ printf '  Website: %s\n' "$SITE"
 printf '  Code:    %s\n' "$CODE"
 printf '  VNC pw:  your Mac Screen Sharing password\n'
 printf '\n'
-printf '  Code valid 4 hours. Ctrl-C to stop.\n\n'
+printf '  Code valid 24 hours. Ctrl-C to stop.\n\n'
 
 # ── Cleanup on exit ───────────────────────────────────────────────
 _cleanup() {

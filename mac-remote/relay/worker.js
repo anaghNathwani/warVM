@@ -37,7 +37,7 @@ export default {
       let body;
       try { body = await request.json(); } catch { return json({ error: 'Bad JSON' }, 400); }
 
-      const { code, url: tunnelUrl, ttl = 14400 } = body;
+      const { code, url: tunnelUrl, ttl = 86400 } = body;
 
       if (typeof code !== 'string' || !/^[A-Z0-9]{6}$/.test(code)) {
         return json({ error: 'code must be 6 uppercase alphanumeric chars' }, 400);
