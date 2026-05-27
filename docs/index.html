@@ -228,6 +228,69 @@
 
     #hud button.danger { border-color: rgba(239,68,68,.4); color: #f87171; }
     #hud button.danger:hover { background: rgba(239,68,68,.15); }
+
+    /* ── Password overlay ────────────────────────────────────────── */
+    #pw-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0,0,0,.7);
+      backdrop-filter: blur(6px);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #pw-overlay.active { display: flex; }
+
+    #pw-box {
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2rem 1.75rem;
+      width: 320px;
+      text-align: center;
+    }
+
+    #pw-box h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #aaa;
+      margin-bottom: 1rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    #pw-input {
+      width: 100%;
+      background: rgba(0,0,0,.45);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1.1rem;
+      padding: .65rem .75rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    #pw-input:focus { border-color: var(--accent); }
+
+    #pw-submit {
+      margin-top: .85rem;
+      width: 100%;
+      padding: .75rem;
+      font-size: .95rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    #pw-submit:hover { opacity: .85; }
   </style>
 </head>
 <body>
@@ -272,13 +335,17 @@
   <div id="vnc-target"></div>
 </section>
 
-<script type="module">
-// ── Config ────────────────────────────────────────────────────────
-// After deploying the Cloudflare Worker, paste its URL here
-const RELAY_URL = 'https://warvm-relay.anaghnathwani.workers.dev';
+<!-- ── VNC password overlay ─────────────────────────────────────── -->
+<div id="pw-overlay">
+  <div id="pw-box">
+    <h3>VNC Password</h3>
+    <input id="pw-input" type="password" placeholder="Mac Screen Sharing password" autocomplete="current-password" />
+    <button id="pw-submit">Unlock</button>
+  </div>
+</div>
 
-// ── noVNC — loaded via esm.sh which resolves internal imports ──
-import RFB from 'https://esm.sh/@novnc/novnc@1.5.0/core/rfb.js';
+<script type="module">
+const RELAY_URL = 'https://warvm-relay.anaghnathwani.workers.dev';
 
 // ── DOM refs ──────────────────────────────────────────────────────
 const landing      = document.getElementById('landing');
@@ -292,6 +359,9 @@ const hudLabel     = document.getElementById('hud-label');
 const vncTarget    = document.getElementById('vnc-target');
 const btnFullscreen= document.getElementById('btn-fullscreen');
 const btnDisconnect= document.getElementById('btn-disconnect');
+const pwOverlay    = document.getElementById('pw-overlay');
+const pwInput      = document.getElementById('pw-input');
+const pwSubmit     = document.getElementById('pw-submit');
 
 let rfb = null;
 let hudTimer = null;
@@ -332,14 +402,10 @@ connectBtn.addEventListener('click', async () => {
     return;
   }
 
-  if (RELAY_URL.startsWith('REPLACE_')) {
-    setStatus('RELAY_URL is not configured in index.html.', 'error');
-    return;
-  }
-
   connectBtn.disabled = true;
   setStatus('Looking up code…');
 
+  // 1. Resolve code → tunnel URL
   let tunnelUrl;
   try {
     const res = await fetch(`${RELAY_URL}/lookup/${code}`);
@@ -347,26 +413,44 @@ connectBtn.addEventListener('click', async () => {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status}`);
     }
-    const data = await res.json();
-    tunnelUrl = data.url;
+    tunnelUrl = (await res.json()).url;
   } catch (err) {
     setStatus(`Code not found — is your Mac running start.sh? (${err.message})`, 'error');
     connectBtn.disabled = false;
     return;
   }
 
-  setStatus('Code found. Opening desktop…', 'ok');
+  // 2. Load noVNC on demand so a CDN failure shows a visible error
+  //    The * prefix tells esm.sh to bundle all sub-imports into one file.
+  setStatus('Loading VNC client…');
+  let RFB;
+  try {
+    const mod = await import('https://esm.sh/*@novnc/novnc@1.4.0/core/rfb.js');
+    RFB = mod.default;
+  } catch (err) {
+    setStatus(`Failed to load VNC client — check your internet connection. (${err.message})`, 'error');
+    connectBtn.disabled = false;
+    return;
+  }
 
-  // Switch views
+  setStatus('Connecting…', 'ok');
+
+  // 3. Switch to desktop view
   landing.style.display = 'none';
   desktop.classList.add('active');
 
-  // noVNC WebSocket URL (https → wss)
   const wsUrl = tunnelUrl.replace(/^https:\/\//, 'wss://');
-
   setHUD('Connecting…', 'connecting');
 
-  rfb = new RFB(vncTarget, wsUrl);
+  try {
+    rfb = new RFB(vncTarget, wsUrl);
+  } catch (err) {
+    setHUD('Failed to start VNC: ' + err.message, 'error');
+    hud.classList.remove('hidden');
+    setTimeout(goHome, 3000);
+    return;
+  }
+
   rfb.scaleViewport = true;
   rfb.resizeSession = true;
   rfb.qualityLevel  = 7;
@@ -384,21 +468,35 @@ connectBtn.addEventListener('click', async () => {
   });
 
   rfb.addEventListener('credentialsrequired', () => {
-    const pw = prompt('Enter your Mac VNC password:');
-    if (pw !== null) rfb.sendCredentials({ password: pw });
-    else goHome();
+    pwInput.value = '';
+    pwOverlay.classList.add('active');
+    pwInput.focus();
   });
 
   rfb.addEventListener('securityfailure', () => {
-    setHUD('Wrong password — disconnecting.', 'error');
+    pwOverlay.classList.remove('active');
+    setHUD('Wrong password — try again.', 'error');
     hud.classList.remove('hidden');
     setTimeout(goHome, 2500);
   });
 
-  // Show HUD on mouse move / touch
   desktop.addEventListener('mousemove', autoHideHUD);
   desktop.addEventListener('touchstart', autoHideHUD, { passive: true });
 });
+
+// ── Password submission ───────────────────────────────────────────
+function submitPassword() {
+  const pw = pwInput.value;
+  pwOverlay.classList.remove('active');
+  if (rfb && pw !== '') {
+    rfb.sendCredentials({ password: pw });
+  } else {
+    goHome();
+  }
+}
+
+pwSubmit.addEventListener('click', submitPassword);
+pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitPassword(); });
 
 // ── Fullscreen ────────────────────────────────────────────────────
 btnFullscreen.addEventListener('click', () => {
@@ -417,6 +515,7 @@ document.addEventListener('fullscreenchange', () => {
 function goHome() {
   if (rfb) { try { rfb.disconnect(); } catch {} rfb = null; }
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  pwOverlay.classList.remove('active');
   desktop.classList.remove('active');
   landing.style.display = '';
   connectBtn.disabled = false;
