@@ -51,7 +51,7 @@ wrangler login          # opens browser to authenticate
 ### 2c. Create a KV namespace
 ```bash
 cd mac-remote/relay
-wrangler kv:namespace create SESSIONS
+wrangler kv namespace create SESSIONS
 ```
 Copy the `id` from the output, then open `mac-remote/relay/wrangler.toml` and replace:
 ```

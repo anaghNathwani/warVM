@@ -2,7 +2,7 @@ name = "warvm-relay"
 main = "worker.js"
 compatibility_date = "2024-09-23"
 
-# After running `wrangler kv:namespace create SESSIONS`, paste the id below
+# After running `wrangler kv namespace create SESSIONS`, paste the id below
 [[kv_namespaces]]
 binding = "SESSIONS"
 id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"

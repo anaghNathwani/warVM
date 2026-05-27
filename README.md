@@ -52,7 +52,7 @@ Mac (home Wi-Fi)
    npm install -g wrangler
    wrangler login
    cd mac-remote/relay
-   wrangler kv:namespace create SESSIONS   # copy the printed id
+   wrangler kv namespace create SESSIONS   # copy the printed id
    # paste id into mac-remote/relay/wrangler.toml
    wrangler deploy
    # copy the printed worker URL
