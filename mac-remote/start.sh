@@ -4,8 +4,7 @@ set -euo pipefail
 
 # ── CONFIG ─────────────────────────────────────────────────────────────
 # After deploying the relay worker, paste its URL here (no trailing slash)
-RELAY_URL=""
-# e.g. RELAY_URL="https://warvm-relay.YOUR_NAME.workers.dev"
+RELAY_URL="https://warvm-relay.anaghnathwani.workers.dev"
 
 SITE="https://anaghnathwani.github.io/warVM"
 VNC_PORT=5900     # Mac Screen Sharing (VNC) port — do not change
